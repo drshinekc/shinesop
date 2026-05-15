@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Shine SOP — Soul Operating Protocol</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --gold: #C9A84C; --gold-light: #F0D080; --gold-pale: #FDF6E3;
+    --lavender: #B89FCC; --lav-light: #E8DEFA; --lav-pale: #F5F0FF;
+    --cream: #FDFAF4; --warm-white: #FFFDF7;
+    --dark: #3D2B1F; --mid: #6B4F3A; --soft: #9B7B6A;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Jost', sans-serif; background: var(--warm-white); color: var(--dark); min-height: 100vh; overflow-x: hidden; }
+  .bg { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+  .bg::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 60% 50% at 10% 10%, rgba(201,168,76,0.08) 0%, transparent 60%), radial-gradient(ellipse 50% 60% at 90% 90%, rgba(184,159,204,0.1) 0%, transparent 60%); }
+  .swirl { position: absolute; border-radius: 50%; border: 1px solid; opacity: 0.12; }
+  .swirl-1 { width: 300px; height: 300px; top: -100px; left: -100px; border-color: var(--gold); }
+  .swirl-2 { width: 200px; height: 200px; top: -60px; left: -60px; border-color: var(--gold-light); }
+  .swirl-3 { width: 400px; height: 400px; bottom: -150px; right: -150px; border-color: var(--lavender); }
+  .swirl-4 { width: 250px; height: 250px; bottom: -80px; right: -80px; border-color: var(--lav-light); }
+  #app { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 0 16px 40px; }
+  .header { text-align: center; padding: 48px 24px 32px; max-width: 600px; }
+  .header-eyebrow { font-weight: 300; font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--lavender); margin-bottom: 12px; }
+  .header-title { font-family: 'Cormorant Garamond', serif; font-size: clamp(32px, 6vw, 52px); font-weight: 300; color: var(--gold); line-height: 1.1; margin-bottom: 8px; }
+  .header-subtitle { font-family: 'Cormorant Garamond', serif; font-size: clamp(14px,2.5vw,18px); font-weight: 300; font-style: italic; color: var(--soft); }
+  .header-divider { width: 80px; height: 1px; background: linear-gradient(90deg, transparent, var(--gold), transparent); margin: 20px auto; }
+  .top-nav { display: flex; justify-content: flex-end; align-items: center; width: 100%; max-width: 560px; margin-bottom: 8px; gap: 12px; min-height: 32px; }
+  .nav-user { font-size: 11px; letter-spacing: 0.1em; color: var(--soft); }
+  .progress-bar { width: 100%; max-width: 560px; height: 3px; background: var(--lav-light); border-radius: 2px; margin-bottom: 32px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--gold), var(--lavender)); border-radius: 2px; transition: width 0.6s ease; }
+  .progress-label { text-align: center; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--soft); margin-bottom: 8px; }
+  .phase { display: none; width: 100%; max-width: 560px; animation: fadeUp 0.5s ease forwards; }
+  .phase.active { display: block; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+  @keyframes bounce { 0%,80%,100% { transform: translateY(0); opacity: 0.4; } 40% { transform: translateY(-6px); opacity: 1; } }
+
+  /* Auth */
+  .auth-card { background: var(--cream); border: 1px solid rgba(201,168,76,0.2); border-radius: 20px; padding: 48px 40px; box-shadow: 0 8px 40px rgba(201,168,76,0.08); }
+  .auth-icon { font-size: 40px; text-align: center; margin-bottom: 20px; animation: float 4s ease-in-out infinite; }
+  .auth-title { font-family: 'Cormorant Garamond', serif; font-size: 28px; font-weight: 300; color: var(--gold); text-align: center; margin-bottom: 8px; }
+  .auth-subtitle { font-family: 'Cormorant Garamond', serif; font-size: 16px; font-style: italic; color: var(--soft); text-align: center; margin-bottom: 32px; line-height: 1.5; }
+  .auth-tabs { display: flex; border: 1px solid rgba(184,159,204,0.3); border-radius: 10px; overflow: hidden; margin-bottom: 28px; }
+  .auth-tab { flex: 1; padding: 10px; font-family: 'Jost', sans-serif; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; background: transparent; border: none; cursor: pointer; color: var(--soft); transition: all 0.2s; }
+  .auth-tab.active { background: var(--gold-pale); color: var(--gold); }
+  .auth-field { margin-bottom: 16px; }
+  .auth-field label { display: block; font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--lavender); margin-bottom: 6px; }
+  .auth-error { background: rgba(212,160,160,0.15); border: 1px solid rgba(212,160,160,0.4); border-radius: 10px; padding: 12px 16px; font-size: 13px; color: #9B4A4A; margin-bottom: 16px; display: none; }
+  .auth-success { background: rgba(184,159,204,0.15); border: 1px solid rgba(184,159,204,0.4); border-radius: 10px; padding: 16px; font-family: 'Cormorant Garamond', serif; font-size: 16px; color: var(--mid); text-align: center; margin-bottom: 16px; display: none; line-height: 1.6; }
+
+  /* Welcome */
+  .welcome-card { background: var(--cream); border: 1px solid rgba(201,168,76,0.2); border-radius: 20px; padding: 48px 40px; text-align: center; box-shadow: 0 8px 40px rgba(201,168,76,0.08); }
+  .welcome-icon { font-size: 48px; margin-bottom: 24px; animation: float 4s ease-in-out infinite; }
+  .welcome-text { font-family: 'Cormorant Garamond', serif; font-size: 20px; font-weight: 300; color: var(--mid); line-height: 1.7; margin-bottom: 32px; }
+
+  /* Profile */
+  .profile-boxes { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 32px; }
+  .profile-box { background: var(--lav-pale); border: 1px solid var(--lavender); border-radius: 16px; padding: 20px 12px; text-align: center; }
+  .profile-box-icon { font-size: 28px; margin-bottom: 8px; }
+  .profile-box-label { font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--lavender); margin-bottom: 4px; }
+  .profile-box-value { font-family: 'Cormorant Garamond', serif; font-size: 15px; font-weight: 500; color: var(--dark); }
+  .profile-box-empty { font-family: 'Cormorant Garamond', serif; font-size: 13px; font-style: italic; color: var(--soft); opacity: 0.6; }
+
+  /* Inputs */
+  .input-card { background: var(--cream); border: 1px solid rgba(201,168,76,0.2); border-radius: 20px; padding: 36px 32px; box-shadow: 0 8px 40px rgba(201,168,76,0.06); margin-bottom: 16px; }
+  .input-section-label { font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--lavender); margin-bottom: 8px; }
+  .input-question { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 400; color: var(--dark); line-height: 1.4; margin-bottom: 20px; }
+  .input-sub { font-size: 13px; color: var(--soft); font-style: italic; line-height: 1.5; margin-bottom: 20px; margin-top: -12px; }
+  input[type="text"], input[type="date"], input[type="email"], input[type="password"], textarea {
+    width: 100%; background: var(--warm-white); border: 1px solid rgba(184,159,204,0.4); border-radius: 12px; padding: 14px 18px; font-family: 'Jost', sans-serif; font-size: 15px; color: var(--dark); outline: none; transition: border-color 0.3s, box-shadow 0.3s; resize: vertical;
+  }
+  input:focus, textarea:focus { border-color: var(--lavender); box-shadow: 0 0 0 3px rgba(184,159,204,0.15); }
+  textarea { min-height: 100px; }
+
+  /* Quiz */
+  .quiz-option { display: flex; align-items: flex-start; gap: 14px; padding: 16px 18px; background: var(--warm-white); border: 1.5px solid rgba(184,159,204,0.3); border-radius: 12px; margin-bottom: 10px; cursor: pointer; transition: all 0.2s; }
+  .quiz-option:hover { border-color: var(--lavender); background: var(--lav-pale); }
+  .quiz-option.selected { border-color: var(--gold); background: var(--gold-pale); }
+  .quiz-dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--lavender); flex-shrink: 0; margin-top: 2px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
+  .quiz-option.selected .quiz-dot { background: var(--gold); border-color: var(--gold); }
+  .quiz-option.selected .quiz-dot::after { content: ''; width: 6px; height: 6px; border-radius: 50%; background: white; }
+  .quiz-option-text { font-size: 14px; color: var(--mid); line-height: 1.5; }
+  .quiz-option-text strong { color: var(--dark); font-weight: 500; }
+
+  /* Chat */
+  .chat-container { background: var(--cream); border: 1px solid rgba(201,168,76,0.2); border-radius: 20px; overflow: hidden; box-shadow: 0 8px 40px rgba(201,168,76,0.06); margin-bottom: 16px; }
+  .chat-messages { padding: 28px 28px 16px; max-height: 420px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; scroll-behavior: smooth; }
+  .chat-messages::-webkit-scrollbar { width: 4px; }
+  .chat-messages::-webkit-scrollbar-thumb { background: var(--lav-light); border-radius: 2px; }
+  .msg { display: flex; gap: 12px; animation: fadeUp 0.4s ease forwards; }
+  .msg-guide { flex-direction: row; }
+  .msg-user { flex-direction: row-reverse; }
+  .msg-avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .msg-guide .msg-avatar { background: var(--gold-pale); border: 1px solid var(--gold-light); }
+  .msg-user .msg-avatar { background: var(--lav-pale); border: 1px solid var(--lavender); }
+  .msg-bubble { max-width: 85%; padding: 14px 18px; border-radius: 16px; font-size: 14px; line-height: 1.6; }
+  .msg-guide .msg-bubble { background: var(--warm-white); border: 1px solid rgba(201,168,76,0.15); color: var(--dark); border-radius: 4px 16px 16px 16px; font-family: 'Cormorant Garamond', serif; font-size: 16px; }
+  .msg-user .msg-bubble { background: var(--lav-pale); border: 1px solid rgba(184,159,204,0.3); color: var(--dark); border-radius: 16px 4px 16px 16px; }
+  .typing-indicator { display: flex; gap: 5px; padding: 4px 0; align-items: center; }
+  .typing-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold-light); animation: bounce 1.2s ease-in-out infinite; }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  .chat-input-area { border-top: 1px solid rgba(184,159,204,0.2); padding: 16px 20px; display: flex; gap: 12px; align-items: flex-end; }
+  .chat-input-area textarea { flex: 1; min-height: 44px; max-height: 120px; border-radius: 12px; padding: 10px 14px; font-size: 14px; resize: none; }
+  .save-indicator { text-align: center; font-size: 11px; letter-spacing: 0.1em; color: var(--soft); opacity: 0; transition: opacity 0.4s; margin-top: 8px; }
+  .save-indicator.show { opacity: 1; }
+
+  /* Dashboard */
+  .dashboard-card { background: var(--cream); border: 1px solid rgba(201,168,76,0.2); border-radius: 20px; padding: 36px 32px; box-shadow: 0 8px 40px rgba(201,168,76,0.06); margin-bottom: 16px; }
+  .dashboard-title { font-family: 'Cormorant Garamond', serif; font-size: 26px; font-weight: 300; color: var(--gold); margin-bottom: 6px; }
+  .dashboard-subtitle { font-size: 13px; color: var(--soft); font-style: italic; margin-bottom: 28px; }
+  .section-row { display: flex; align-items: center; gap: 14px; padding: 14px 0; border-bottom: 1px solid rgba(201,168,76,0.1); cursor: pointer; transition: all 0.2s; }
+  .section-row:last-child { border-bottom: none; }
+  .section-row:hover { padding-left: 6px; }
+  .section-status { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
+  .section-status.done { background: var(--gold-pale); border: 1px solid var(--gold-light); color: var(--gold); }
+  .section-status.current { background: var(--lav-pale); border: 1px solid var(--lavender); color: var(--lavender); }
+  .section-status.pending { background: var(--warm-white); border: 1px solid rgba(184,159,204,0.2); color: var(--soft); opacity: 0.5; }
+  .section-name { font-family: 'Cormorant Garamond', serif; font-size: 18px; color: var(--dark); flex: 1; }
+  .section-caret { color: var(--soft); opacity: 0.4; }
+
+  /* Completion */
+  .completion-card { text-align: center; background: var(--cream); border: 1px solid rgba(201,168,76,0.2); border-radius: 20px; padding: 52px 40px; box-shadow: 0 8px 40px rgba(201,168,76,0.1); }
+  .completion-icon { font-size: 56px; margin-bottom: 24px; animation: float 4s ease-in-out infinite; }
+  .completion-title { font-family: 'Cormorant Garamond', serif; font-size: 34px; font-weight: 300; color: var(--gold); margin-bottom: 12px; }
+  .completion-text { font-family: 'Cormorant Garamond', serif; font-size: 18px; font-weight: 300; color: var(--mid); line-height: 1.7; margin-bottom: 32px; }
+
+  /* Buttons */
+  .btn { font-family: 'Jost', sans-serif; font-size: 13px; font-weight: 400; letter-spacing: 0.12em; text-transform: uppercase; border: none; border-radius: 50px; padding: 14px 32px; cursor: pointer; transition: all 0.25s; display: inline-flex; align-items: center; gap: 8px; }
+  .btn-primary { background: linear-gradient(135deg, var(--gold), #D4A84C); color: white; box-shadow: 0 4px 20px rgba(201,168,76,0.3); }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(201,168,76,0.4); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .btn-secondary { background: transparent; color: var(--lavender); border: 1px solid var(--lavender); }
+  .btn-secondary:hover { background: var(--lav-pale); }
+  .btn-ghost { background: transparent; color: var(--soft); font-size: 11px; padding: 8px 16px; border: none; cursor: pointer; letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Jost', sans-serif; }
+  .btn-ghost:hover { color: var(--mid); }
+  .btn-send { background: var(--gold-pale); border: 1px solid var(--gold-light); color: var(--gold); border-radius: 10px; padding: 10px 16px; font-size: 18px; cursor: pointer; transition: all 0.2s; flex-shrink: 0; }
+  .btn-send:hover { background: var(--gold); color: white; }
+  .btn-send:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-top: 24px; }
+  .section-pill { display: inline-flex; align-items: center; gap: 8px; background: var(--gold-pale); border: 1px solid var(--gold-light); border-radius: 50px; padding: 6px 16px; font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--gold); margin-bottom: 20px; }
+  .reflection { background: linear-gradient(135deg, var(--lav-pale), var(--gold-pale)); border: 1px solid rgba(201,168,76,0.2); border-radius: 16px; padding: 20px 24px; margin: 16px 0; font-family: 'Cormorant Garamond', serif; font-size: 17px; font-style: italic; color: var(--mid); line-height: 1.6; }
+  .hidden { display: none !important; }
+  @media (max-width: 480px) {
+    .welcome-card, .input-card, .chat-container, .auth-card, .dashboard-card { padding: 24px 20px; }
+    .profile-boxes { grid-template-columns: 1fr; }
+    .header { padding: 32px 16px 24px; }
+  }
+</style>
+</head>
+<body>
+<div class="bg">
+  <div class="swirl swirl-1"></div><div class="swirl swirl-2"></div>
+  <div class="swirl swirl-3"></div><div class="swirl swirl-4"></div>
+</div>
+
+<div id="app">
+  <div class="header">
+    <div class="header-eyebrow">A Shine Experience</div>
+    <div class="header-title">The Shine SOP</div>
+    <div class="header-subtitle">Soul Operating Protocol · Know Yourself First</div>
+    <div class="header-divider"></div>
+  </div>
+
+  <div class="top-nav" id="topNav" style="display:none;">
+    <span class="nav-user" id="navEmail"></span>
+    <button class="btn-ghost" onclick="signOut()">Sign out</button>
+  </div>
+
+  <div style="width:100%;max-width:560px;margin-bottom:8px;">
+    <div class="progress-label" id="progressLabel">Welcome</div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+  </div>
+
+  <!-- SETUP (first launch only) -->
+  <div class="phase" id="phase-setup">
+    <div class="auth-card">
+      <div class="auth-icon">🔑</div>
+      <div class="auth-title">One-time Setup</div>
+      <div class="auth-subtitle">Enter your keys below. They are saved privately in your browser and never shared.</div>
+      <div id="setup-error" class="auth-error"></div>
+      <div class="auth-field">
+        <label>Supabase URL</label>
+        <input type="text" id="setup-url" placeholder="https://xxxx.supabase.co">
+      </div>
+      <div class="auth-field">
+        <label>Supabase Anon Key</label>
+        <input type="text" id="setup-anon" placeholder="eyJ...">
+      </div>
+      <div class="auth-field">
+        <label>Anthropic API Key</label>
+        <input type="text" id="setup-anthropic" placeholder="sk-ant-...">
+      </div>
+      <div class="btn-row" style="margin-top:20px;">
+        <button class="btn btn-primary" onclick="saveSetup()">Save & Continue ✦</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AUTH -->
+  <div class="phase active" id="phase-auth">
+    <div class="auth-card">
+      <div class="auth-icon">✨</div>
+      <div class="auth-title">Welcome to The Shine SOP</div>
+      <div class="auth-subtitle">Create an account to save your progress and return whenever you need to.</div>
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tab-signup" onclick="switchTab('signup')">Create Account</button>
+        <button class="auth-tab" id="tab-signin" onclick="switchTab('signin')">Sign In</button>
+      </div>
+      <div id="auth-error" class="auth-error"></div>
+      <div id="auth-success" class="auth-success"></div>
+      <div class="auth-field"><label>Email</label><input type="email" id="auth-email" placeholder="your@email.com"></div>
+      <div class="auth-field"><label>Password</label><input type="password" id="auth-password" placeholder="At least 6 characters" onkeydown="if(event.key==='Enter') submitAuth()"></div>
+      <div class="btn-row" style="margin-top:20px;">
+        <button class="btn btn-primary" id="auth-btn" onclick="submitAuth()">Begin My Journey ✦</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- WELCOME -->
+  <div class="phase" id="phase-welcome">
+    <div class="welcome-card">
+      <div class="welcome-icon">✨</div>
+      <div id="returning-msg" class="hidden">
+        <div class="reflection" style="margin-bottom:24px;">Welcome back. Your work is right where you left it.</div>
+      </div>
+      <div class="welcome-text">
+        This is your space to do the most important work there is — coming home to yourself.<br><br>
+        You will be gently guided through a series of questions. There are no wrong answers. Only honest ones.<br><br>
+        At the end, you will receive your Soul Operating Protocol — in your own words.
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="handleWelcomeContinue()">Begin My Journey ✦</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROFILE -->
+  <div class="phase" id="phase-profile">
+    <div class="input-card">
+      <div class="input-section-label">✦ Your Profile</div>
+      <div class="input-question">Let's start with the basics. What is your birthday?</div>
+      <div class="input-sub">We'll use this to find your astrological sign automatically.</div>
+      <input type="date" id="birthday" onchange="calcSign()" style="margin-bottom:20px;">
+      <div id="sign-result" class="reflection hidden"></div>
+      <div class="input-question" style="margin-top:24px;">What is your Human Design type and profile?</div>
+      <div class="input-sub">For example: 2/4 Generator, 6/2 Projector, 4/6 Manifesting Generator. If you don't know yours yet, you can find it free at mybodygraph.com</div>
+      <input type="text" id="hd-type" placeholder="e.g. 4/6 Manifesting Generator">
+    </div>
+    <div class="btn-row"><button class="btn btn-primary" onclick="goTo('phase-lovelang')">Continue →</button></div>
+  </div>
+
+  <!-- LOVE LANGUAGE -->
+  <div class="phase" id="phase-lovelang">
+    <div class="input-card">
+      <div class="input-section-label">✦ Your Love Language</div>
+      <div class="input-question">When you feel most deeply loved and seen, what usually made that happen?</div>
+      <div class="input-sub">Choose the one that resonates most in your heart, not your head.</div>
+      <div class="quiz-option" onclick="selectLL(this,'Words of Affirmation')"><div class="quiz-dot"></div><div class="quiz-option-text"><strong>Someone told me how much I mean to them</strong> — a heartfelt message, a genuine compliment, being verbally acknowledged</div></div>
+      <div class="quiz-option" onclick="selectLL(this,'Quality Time')"><div class="quiz-dot"></div><div class="quiz-option-text"><strong>Someone gave me their full, undivided presence</strong> — put the phone down, looked me in the eyes, was truly with me</div></div>
+      <div class="quiz-option" onclick="selectLL(this,'Receiving Gifts')"><div class="quiz-dot"></div><div class="quiz-option-text"><strong>Someone thought of me and brought something back</strong> — a small surprise, a token that said "I saw this and thought of you"</div></div>
+      <div class="quiz-option" onclick="selectLL(this,'Acts of Service')"><div class="quiz-dot"></div><div class="quiz-option-text"><strong>Someone just did something for me without being asked</strong> — noticed what needed doing and handled it, took something off my plate</div></div>
+      <div class="quiz-option" onclick="selectLL(this,'Physical Touch')"><div class="quiz-dot"></div><div class="quiz-option-text"><strong>Someone reached for me</strong> — a hug, a hand held, being pulled close without needing to ask</div></div>
+      <div id="ll-result" class="reflection hidden"></div>
+    </div>
+    <div class="btn-row"><button class="btn btn-primary" onclick="goTo('phase-commitment')">This feels right →</button></div>
+  </div>
+
+  <!-- COMMITMENT -->
+  <div class="phase" id="phase-commitment">
+    <div class="profile-boxes">
+      <div class="profile-box"><div class="profile-box-icon">♓</div><div class="profile-box-label">Sign</div><div class="profile-box-value" id="display-sign"><span class="profile-box-empty">—</span></div></div>
+      <div class="profile-box"><div class="profile-box-icon">◈</div><div class="profile-box-label">Human Design</div><div class="profile-box-value" id="display-hd"><span class="profile-box-empty">—</span></div></div>
+      <div class="profile-box"><div class="profile-box-icon">♡</div><div class="profile-box-label">Love Language</div><div class="profile-box-value" id="display-ll"><span class="profile-box-empty">—</span></div></div>
+    </div>
+    <div class="input-card">
+      <div class="input-section-label">✦ Your Commitment</div>
+      <div class="input-question">Before we begin, make a promise to yourself.</div>
+      <div class="input-sub">What are you committing to as you do this work? Say it plainly and honestly. There is no right answer — only a true one.</div>
+      <textarea id="commitment" placeholder="I commit to..."></textarea>
+    </div>
+    <div class="btn-row"><button class="btn btn-primary" onclick="startChat()">Begin the Work ✦</button></div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="phase" id="phase-dashboard">
+    <div class="dashboard-card">
+      <div class="dashboard-title">Your Journey</div>
+      <div class="dashboard-subtitle">Pick up where you left off, or choose any section.</div>
+      <div id="dashboard-sections"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="startFresh()">Start fresh instead</button>
+    </div>
+  </div>
+
+  <!-- CHAT -->
+  <div class="phase" id="phase-chat">
+    <div class="section-pill" id="chat-section-label">✦ Section 01 — My Patterns</div>
+    <div class="chat-container">
+      <div class="chat-messages" id="chatMessages"></div>
+      <div class="chat-input-area">
+        <textarea id="userInput" placeholder="Share whatever feels true..." rows="1"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"
+          oninput="this.style.height='44px';this.style.height=this.scrollHeight+'px'"></textarea>
+        <button class="btn-send" id="sendBtn" onclick="sendMessage()">↑</button>
+      </div>
+    </div>
+    <div class="save-indicator" id="saveIndicator">✦ Progress saved</div>
+    <div style="text-align:center;margin-top:8px;">
+      <button class="btn btn-secondary" onclick="skipSection()" style="font-size:11px;padding:8px 20px;">Skip this section for now</button>
+    </div>
+  </div>
+
+  <!-- COMPLETE -->
+  <div class="phase" id="phase-complete">
+    <div class="completion-card">
+      <div class="completion-icon">🌸</div>
+      <div class="completion-title">You did it.</div>
+      <div class="completion-text">
+        Your Soul Operating Protocol is complete.<br><br>
+        What you just built is not a document. It is a mirror — the most honest one you will ever look into. Everything you named here matters. Every word belongs to you.<br><br>
+        <em>Come back to this whenever you need to find yourself again.</em>
+      </div>
+      <div id="final-profile" class="profile-boxes" style="margin-bottom:32px;"></div>
+      <div id="final-commitment" class="reflection" style="margin-bottom:32px;"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="downloadReport()">Download My SOP ✦</button>
+        <button class="btn btn-secondary" onclick="goTo('phase-dashboard')">View my journey</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  PASTE YOUR THREE KEYS BELOW
+// ═══════════════════════════════════════════════
+let SUPABASE_URL      = localStorage.getItem('shine_supabase_url') || '';
+let SUPABASE_ANON_KEY = localStorage.getItem('shine_supabase_anon') || '';
+let ANTHROPIC_KEY     = localStorage.getItem('shine_anthropic_key') || '';
+// ═══════════════════════════════════════════════
+
+let sb = null;
+
+const state = {
+  user: null, sign: '', hd: '', loveLanguage: '', commitment: '',
+  answers: {}, currentSection: 0, currentQ: -1,
+  isWaiting: false, conversationHistory: [], isReturning: false
+};
+
+// ── Auth ───────────────────────────────────────
+let authMode = 'signup';
+function switchTab(mode) {
+  authMode = mode;
+  document.getElementById('tab-signup').classList.toggle('active', mode === 'signup');
+  document.getElementById('tab-signin').classList.toggle('active', mode === 'signin');
+  document.getElementById('auth-btn').textContent = mode === 'signup' ? 'Begin My Journey ✦' : 'Welcome Back ✦';
+  document.getElementById('auth-error').style.display = 'none';
+  document.getElementById('auth-success').style.display = 'none';
+}
+
+async function submitAuth() {
+  const email    = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const errEl    = document.getElementById('auth-error');
+  const okEl     = document.getElementById('auth-success');
+  const btn      = document.getElementById('auth-btn');
+  errEl.style.display = 'none'; okEl.style.display = 'none';
+  if (!email || !password) { errEl.textContent = 'Please enter your email and password.'; errEl.style.display = 'block'; return; }
+  btn.disabled = true; btn.textContent = 'One moment...';
+  try {
+    let result;
+    if (authMode === 'signup') {
+      result = await sb.auth.signUp({ email, password });
+      if (result.error) throw result.error;
+      if (result.data.user && !result.data.session) {
+        okEl.textContent = 'Almost there — check your email to confirm your account, then come back and sign in.';
+        okEl.style.display = 'block';
+        switchTab('signin');
+        btn.disabled = false; btn.textContent = 'Welcome Back ✦';
+        return;
+      }
+    } else {
+      result = await sb.auth.signInWithPassword({ email, password });
+      if (result.error) throw result.error;
+    }
+    state.user = result.data.user;
+    await afterSignIn();
+  } catch (err) {
+    errEl.textContent = err.message || 'Something went wrong. Please try again.';
+    errEl.style.display = 'block';
+  }
+  btn.disabled = false;
+  btn.textContent = authMode === 'signup' ? 'Begin My Journey ✦' : 'Welcome Back ✦';
+}
+
+async function afterSignIn() {
+  document.getElementById('navEmail').textContent = state.user.email;
+  document.getElementById('topNav').style.display = 'flex';
+  const { data } = await sb.from('sop_progress').select('*').eq('user_id', state.user.id).single();
+  if (data?.progress) {
+    const p = data.progress;
+    Object.assign(state, {
+      sign: p.sign||'', hd: p.hd||'', loveLanguage: p.loveLanguage||'',
+      commitment: p.commitment||'', answers: p.answers||{},
+      currentSection: p.currentSection||0, currentQ: p.currentQ||-1,
+      conversationHistory: p.conversationHistory||[], isReturning: true
+    });
+  }
+  goTo('phase-welcome');
+  if (state.isReturning && state.commitment) document.getElementById('returning-msg').classList.remove('hidden');
+}
+
+async function signOut() {
+  await sb.auth.signOut();
+  Object.assign(state, { user:null, sign:'', hd:'', loveLanguage:'', commitment:'', answers:{}, currentSection:0, currentQ:-1, isWaiting:false, conversationHistory:[], isReturning:false });
+  document.getElementById('topNav').style.display = 'none';
+  document.getElementById('chatMessages').innerHTML = '';
+  document.getElementById('returning-msg').classList.add('hidden');
+  goTo('phase-auth');
+}
+
+// ── Save ───────────────────────────────────────
+async function saveProgress() {
+  if (!state.user) return;
+  await sb.from('sop_progress').upsert({
+    user_id: state.user.id,
+    progress: { sign:state.sign, hd:state.hd, loveLanguage:state.loveLanguage, commitment:state.commitment, answers:state.answers, currentSection:state.currentSection, currentQ:state.currentQ, conversationHistory:state.conversationHistory },
+    updated_at: new Date().toISOString()
+  }, { onConflict: 'user_id' });
+  const ind = document.getElementById('saveIndicator');
+  ind.classList.add('show');
+  setTimeout(() => ind.classList.remove('show'), 2000);
+}
+
+// ── Navigation ─────────────────────────────────
+function handleWelcomeContinue() {
+  if (state.isReturning && state.commitment) { buildDashboard(); goTo('phase-dashboard'); }
+  else goTo('phase-profile');
+}
+
+function startFresh() {
+  Object.assign(state, { answers:{}, currentSection:0, currentQ:-1, conversationHistory:[], commitment:'', sign:'', hd:'', loveLanguage:'', isReturning:false });
+  document.getElementById('chatMessages').innerHTML = '';
+  goTo('phase-profile');
+}
+
+function buildDashboard() {
+  const c = document.getElementById('dashboard-sections');
+  c.innerHTML = '';
+  sections.forEach((sec, idx) => {
+    const done    = Object.keys(state.answers).some(k => k.startsWith(`s${idx}_`));
+    const current = idx === state.currentSection;
+    const cls     = done ? 'done' : current ? 'current' : 'pending';
+    const icon    = done ? '✦'   : current ? '◉'       : '○';
+    const row = document.createElement('div');
+    row.className = 'section-row';
+    row.innerHTML = `<div class="section-status ${cls}">${icon}</div><div class="section-name">${sec.label}</div><div class="section-caret">→</div>`;
+    row.onclick = () => resumeSection(idx);
+    c.appendChild(row);
+  });
+}
+
+function resumeSection(idx) {
+  state.currentSection = idx;
+  document.getElementById('chatMessages').innerHTML = '';
+  state.conversationHistory = [];
+  goTo('phase-chat');
+  startSection(idx);
+}
+
+function goTo(id) {
+  document.querySelectorAll('.phase').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  updateProgress(id);
+  window.scrollTo({ top:0, behavior:'smooth' });
+  if (id === 'phase-commitment') {
+    document.getElementById('display-sign').textContent = state.sign || '—';
+    document.getElementById('display-hd').textContent   = document.getElementById('hd-type').value || '—';
+    document.getElementById('display-ll').textContent   = state.loveLanguage || '—';
+    state.hd = document.getElementById('hd-type').value;
+  }
+}
+
+function updateProgress(id) {
+  const phases = ['phase-auth','phase-welcome','phase-profile','phase-lovelang','phase-commitment','phase-chat','phase-complete'];
+  const labels = ['','Welcome','Your Profile','Love Language','Your Commitment','The Journey','Complete'];
+  const idx = phases.indexOf(id);
+  document.getElementById('progressFill').style.width = Math.round((idx/(phases.length-1))*100) + '%';
+  document.getElementById('progressLabel').textContent = labels[idx] || '';
+}
+
+// ── Sign Calculator ────────────────────────────
+function calcSign() {
+  const val = document.getElementById('birthday').value;
+  if (!val) return;
+  const d = new Date(val), m = d.getUTCMonth()+1, day = d.getUTCDate();
+  const signs = [['Capricorn',[1,1],[1,19]],['Aquarius',[1,20],[2,18]],['Pisces',[2,19],[3,20]],['Aries',[3,21],[4,19]],['Taurus',[4,20],[5,20]],['Gemini',[5,21],[6,20]],['Cancer',[6,21],[7,22]],['Leo',[7,23],[8,22]],['Virgo',[8,23],[9,22]],['Libra',[9,23],[10,22]],['Scorpio',[10,23],[11,21]],['Sagittarius',[11,22],[12,21]],['Capricorn',[12,22],[12,31]]];
+  let sign = 'Capricorn';
+  for (const [s,[sm,sd],[em,ed]] of signs) { if ((m===sm&&day>=sd)||(m===em&&day<=ed)) { sign=s; break; } }
+  state.sign = sign;
+  const el = document.getElementById('sign-result');
+  el.textContent = `✨ Your sign is ${sign}. A beautiful place to begin.`;
+  el.classList.remove('hidden');
+}
+
+function selectLL(el, lang) {
+  document.querySelectorAll('.quiz-option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  state.loveLanguage = lang;
+  const res = document.getElementById('ll-result');
+  res.textContent = `Your primary love language is ${lang}. That tells us so much about how you give and receive love.`;
+  res.classList.remove('hidden');
+}
+
+// ── Sections ───────────────────────────────────
+const sections = [
+  { label:'01 — My Patterns', intro:`Welcome to the beginning of your Soul Operating Protocol. This first section is about your patterns — how you have historically shown up in relationships. This is not judgment. It is data. And knowing it is the beginning of everything.\n\nLet's start gently. When you look back at your past relationships, what is the one pattern you keep seeing in yourself?`, questions:["When you first start to make yourself small in a relationship, what does that actually look like day to day? And do you have a sense of when it usually starts?","When you feel unheard or dismissed by someone you love, what happens inside you? What does your body do? What does your voice do?","Is there something from earlier in your life that you think shaped these patterns? You don't have to go far back if it doesn't feel right. But this is often where the roots live.","In your last relationship, were there any moments where you held yourself back from saying something true? What stopped you?"] },
+  { label:'02 — Who I Am', intro:`Now we move into the heart of who you actually are. Not who you think you should be. Not who you are in a relationship. Who you are when you are simply, fully yourself.\n\nLet's start with your values. What are the things that feel completely non-negotiable to you — the values that, when missing from a relationship, something inside you just knows something is off?`, questions:["How do you naturally give love to the people close to you? Think about what you actually do — not what you think you should do.","How do you receive love best? What makes you feel genuinely seen and cared for? The more specific the better.","What quietly drains you — even if you rarely say it out loud? These can be small things or big things.","Who are you when no one is watching? What lights you up just for you, outside of any relationship?","When you imagine being in a relationship and still feeling completely free and fully yourself — what does that feel like in your body?"] },
+  { label:'03 — My Needs', intro:`This section is about your needs. And I want to say something before we begin: needs are not weaknesses. They are information. Naming them clearly is how you stop waiting for someone to guess, and start letting yourself be truly known.\n\nWhat do you need emotionally to feel safe and loved in a relationship? Don't filter. Don't decide if it's too much. Just name what is true.`, questions:["What are your non-negotiable practical needs in a relationship — things like time, communication, how you handle schedules, space, finances, day-to-day life?","Are there needs you have historically minimized or dismissed — things you've told yourself you shouldn't need or that felt like too much to ask for?","When you imagine voicing a need to your partner, what is the first feeling that comes up? Just one word or one sentence is enough."] },
+  { label:'04 — My Boundaries', intro:`Boundaries are the conditions under which you can stay open and present. They are not walls. They are the fence that lets love move through while keeping you safe.\n\nWhat is the first boundary that comes to mind — one you know without any doubt you need to hold?`, questions:["Are there boundaries you have broken in the past? What did it cost you?","When a boundary gets crossed, what do you actually want to be able to say in that moment? Keep it simple and true.","When the fear kicks in and the old instinct says to just let it go — what do you need from yourself or a partner to stay steady?"] },
+  { label:'05 — My Intentions', intro:`This section is about what you are actually bringing into love — and what you want from it.\n\nWhat do you want to experience in a relationship? Let it be as big and honest as it needs to be.`, questions:["What do you want to offer? What does the fullest, most real version of you bring into a relationship?","What fears are you carrying in? Name them plainly — old ones, new ones, or both.","What is the one thing you are most committed to doing differently this time?"] },
+  { label:'06 — Knowing Myself', intro:`Now we go beyond relationships. Because knowing yourself is not just about how you love — it is about how you live.\n\nHow would you describe your relationship with money right now? Be honest. This is just for you.`, questions:["What does your free time actually look like? And what lights you up when you have space to choose?","Are you a morning person or a night owl? Walk me through what your ideal day looks and feels like.","How do you move your body and when do you feel most motivated to do it?","What does rest actually look like for you — real rest, not just sleep?","How would you describe your spiritual practice? What does it mean to you and what do you protect about it?","How do you feel in your body? What has your journey with your body looked like?"] },
+  { label:'07 — My Life Vision', intro:`We are almost complete. This final section is the biggest picture of all.\n\nWhat does a full and meaningful life look like for you? Not what it looks like from the outside. What does it feel like inside?`, questions:["What are you building? Your work, your mission, what you want to be known for?","What do you want more of in your daily life — the small, specific things that would make each day feel more alive?","What are you ready to let go of?","Finally — describe the version of you that you are becoming. Not who you were. Not who you think you should be. Who you are actively stepping into."] }
+];
+
+// ── Chat ───────────────────────────────────────
+function startChat() {
+  state.commitment = document.getElementById('commitment').value;
+  goTo('phase-chat');
+  state.currentSection = 0; state.currentQ = -1;
+  startSection(0);
+}
+
+function startSection(idx) {
+  if (idx >= sections.length) { completeJourney(); return; }
+  state.currentSection = idx; state.currentQ = -1;
+  document.getElementById('chat-section-label').textContent = '✦ Section ' + sections[idx].label;
+  addGuideMessage(sections[idx].intro);
+  document.getElementById('progressFill').style.width = Math.round((idx/sections.length)*70+20) + '%';
+}
+
+function skipSection() {
+  state.currentSection++;
+  document.getElementById('chatMessages').innerHTML = '';
+  state.conversationHistory = [];
+  if (state.currentSection >= sections.length) { completeJourney(); return; }
+  startSection(state.currentSection);
+  saveProgress();
+}
+
+function addGuideMessage(text) {
+  const msgs = document.getElementById('chatMessages');
+  const msg = document.createElement('div');
+  msg.className = 'msg msg-guide';
+  msg.innerHTML = `<div class="msg-avatar">✨</div><div class="msg-bubble">${text.replace(/\n/g,'<br>')}</div>`;
+  msgs.appendChild(msg);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function addUserMessage(text) {
+  const msgs = document.getElementById('chatMessages');
+  const msg = document.createElement('div');
+  msg.className = 'msg msg-user';
+  msg.innerHTML = `<div class="msg-avatar">🌸</div><div class="msg-bubble">${text}</div>`;
+  msgs.appendChild(msg);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function showTyping() {
+  const msgs = document.getElementById('chatMessages');
+  const t = document.createElement('div');
+  t.className = 'msg msg-guide'; t.id = 'typing';
+  t.innerHTML = `<div class="msg-avatar">✨</div><div class="msg-bubble"><div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>`;
+  msgs.appendChild(t); msgs.scrollTop = msgs.scrollHeight;
+}
+function hideTyping() { const t = document.getElementById('typing'); if (t) t.remove(); }
+
+async function sendMessage() {
+  const input = document.getElementById('userInput');
+  const text = input.value.trim();
+  if (!text || state.isWaiting) return;
+  addUserMessage(text);
+  input.value = ''; input.style.height = '44px';
+  const key = `s${state.currentSection}_q${state.currentQ}`;
+  if (!state.answers[key]) state.answers[key] = [];
+  state.answers[key].push(text);
+  state.isWaiting = true;
+  document.getElementById('sendBtn').disabled = true;
+  showTyping();
+  state.conversationHistory.push({ role:'user', content:text });
+
+  try {
+    const res = await fetch('/.netlify/functions/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ system: buildSystemPrompt(), messages: state.conversationHistory })
+    });
+    const data = await res.json();
+    const reply = data.content?.[0]?.text || "Thank you for sharing that. Take a breath. Whenever you're ready, we'll continue.";
+    hideTyping();
+    addGuideMessage(reply);
+    state.conversationHistory.push({ role:'assistant', content:reply });
+    state.currentQ++;
+    const sec = sections[state.currentSection];
+    if (state.currentQ < sec.questions.length) {
+      setTimeout(() => {
+        const q = sec.questions[state.currentQ];
+        addGuideMessage(q);
+        state.conversationHistory.push({ role:'assistant', content:q });
+      }, 1200);
+    } else {
+      setTimeout(() => {
+        const next = state.currentSection + 1;
+        if (next < sections.length) {
+          addGuideMessage("You've done beautiful work in this section. Take a breath. When you're ready, we'll move into the next one.");
+          setTimeout(() => { document.getElementById('chatMessages').innerHTML = ''; state.conversationHistory = []; startSection(next); }, 1800);
+        } else { completeJourney(); }
+      }, 1200);
+    }
+    await saveProgress();
+  } catch (err) {
+    hideTyping();
+    addGuideMessage("Something gentle got in the way there. Take a moment, and then try sharing again whenever you're ready.");
+    console.error(err);
+  }
+  state.isWaiting = false;
+  document.getElementById('sendBtn').disabled = false;
+}
+
+function buildSystemPrompt() {
+  const sec = sections[state.currentSection];
+  return `You are the warm, nurturing guide for The Shine SOP — a deeply personal self-discovery experience. Your role is to help people uncover who they truly are through honest, courageous conversation.
+
+Your tone is warm, grounded, nurturing, and gently reflective — like a wise friend who holds space without judgment. You reflect something meaningful back before moving on. You never rush. You honor every answer.
+
+The person is currently in: Section ${state.currentSection+1} — ${sec.label}
+Their profile: Sign: ${state.sign} | Human Design: ${state.hd} | Love language: ${state.loveLanguage}
+Their commitment: "${state.commitment}"
+
+Guidelines:
+- Reflect 2-3 sentences back from what they actually shared — reference their words
+- Do not give advice unless asked
+- No bullet points — only flowing, warm sentences
+- Keep responses to 3-5 sentences
+- End with a gentle opening, not another question (the next question is sent separately)
+- If they share something painful, honor it first
+- Keep language natural and human`;
+}
+
+function completeJourney() {
+  document.getElementById('progressFill').style.width = '100%';
+  document.getElementById('progressLabel').textContent = 'Complete';
+  document.getElementById('final-profile').innerHTML = `<div class="profile-box"><div class="profile-box-icon">♓</div><div class="profile-box-label">Sign</div><div class="profile-box-value">${state.sign||'—'}</div></div><div class="profile-box"><div class="profile-box-icon">◈</div><div class="profile-box-label">Human Design</div><div class="profile-box-value">${state.hd||'—'}</div></div><div class="profile-box"><div class="profile-box-icon">♡</div><div class="profile-box-label">Love Language</div><div class="profile-box-value">${state.loveLanguage||'—'}</div></div>`;
+  document.getElementById('final-commitment').textContent = `"${state.commitment}"`;
+  goTo('phase-complete');
+  saveProgress();
+}
+
+function downloadReport() {
+  let r = `THE SHINE SOP — SOUL OPERATING PROTOCOL\nKnow Yourself First\n${'─'.repeat(40)}\n\nPROFILE\nSign: ${state.sign}\nHuman Design: ${state.hd}\nLove Language: ${state.loveLanguage}\n\nMY COMMITMENT\n"${state.commitment}"\n\n`;
+  sections.forEach((sec,si) => { r += `${'─'.repeat(40)}\nSECTION ${si+1}: ${sec.label.toUpperCase()}\n\n`; Object.entries(state.answers).forEach(([k,a]) => { if(k.startsWith(`s${si}_`)) a.forEach(x => { r += `${x}\n\n`; }); }); });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([r],{type:'text/plain'}));
+  a.download = 'My_Shine_SOP.txt'; a.click();
+}
+
+function saveSetup() {
+  const url      = document.getElementById('setup-url').value.trim();
+  const anon     = document.getElementById('setup-anon').value.trim();
+  const anthropic = document.getElementById('setup-anthropic').value.trim();
+  const errEl    = document.getElementById('setup-error');
+  if (!url || !anon || !anthropic) {
+    errEl.textContent = 'Please fill in all three fields.';
+    errEl.style.display = 'block';
+    return;
+  }
+  localStorage.setItem('shine_supabase_url', url);
+  localStorage.setItem('shine_supabase_anon', anon);
+  localStorage.setItem('shine_anthropic_key', anthropic);
+  SUPABASE_URL      = url;
+  SUPABASE_ANON_KEY = anon;
+  ANTHROPIC_KEY     = anthropic;
+  sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  goTo('phase-auth');
+}
+
+// ── Init ───────────────────────────────────────
+(async () => {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !ANTHROPIC_KEY) {
+    goTo('phase-setup');
+    return;
+  }
+  sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const { data: { session } } = await sb.auth.getSession();
+  if (session?.user) { state.user = session.user; await afterSignIn(); }
+  else goTo('phase-auth');
+})();
+</script>
+</body>
+</html>
