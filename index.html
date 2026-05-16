@@ -571,92 +571,9 @@ async function sendMessage() {
   state.conversationHistory.push({ role:'user', content:text });
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_KEY,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-request-browser': 'true'
-      },
-      body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1000, system:buildSystemPrompt(), messages:state.conversationHistory })
-    });
-    const data = await res.json();
-    const reply = data.content?.[0]?.text || "Thank you for sharing that. Take a breath. Whenever you're ready, we'll continue.";
-    hideTyping();
-    addGuideMessage(reply);
-    state.conversationHistory.push({ role:'assistant', content:reply });
-    state.currentQ++;
-    const sec = sections[state.currentSection];
-    if (state.currentQ < sec.questions.length) {
-      setTimeout(() => {
-        const q = sec.questions[state.currentQ];
-        addGuideMessage(q);
-        state.conversationHistory.push({ role:'assistant', content:q });
-      }, 1200);
-    } else {
-      setTimeout(() => {
-        const next = state.currentSection + 1;
-        if (next < sections.length) {
-          addGuideMessage("You've done beautiful work in this section. Take a breath. When you're ready, we'll move into the next one.");
-          setTimeout(() => { document.getElementById('chatMessages').innerHTML = ''; state.conversationHistory = []; startSection(next); }, 1800);
-        } else { completeJourney(); }
-      }, 1200);
-    }
-    await saveProgress();
-  } catch (err) {
-    hideTyping();
-    addGuideMessage("Something gentle got in the way there. Take a moment, and then try sharing again whenever you're ready.");
-    console.error(err);
-  }
-  state.isWaiting = false;
-  document.getElementById('sendBtn').disabled = false;
-}
-
-function buildSystemPrompt() {
-  const sec = sections[state.currentSection];
-  return `You are the warm, nurturing guide for The Shine SOP — a deeply personal self-discovery experience. Your role is to help people uncover who they truly are through honest, courageous conversation.
-
-Your tone is warm, grounded, nurturing, and gently reflective — like a wise friend who holds space without judgment. You reflect something meaningful back before moving on. You never rush. You honor every answer.
-
-The person is currently in: Section ${state.currentSection+1} — ${sec.label}
-Their profile: Sign: ${state.sign} | Human Design: ${state.hd} | Love language: ${state.loveLanguage}
-Their commitment: "${state.commitment}"
-
-Guidelines:
-- Reflect 2-3 sentences back from what they actually shared — reference their words
-- Do not give advice unless asked
-- No bullet points — only flowing, warm sentences
-- Keep responses to 3-5 sentences
-- End with a gentle opening, not another question (the next question is sent separately)
-- If they share something painful, honor it first
-- Keep language natural and human`;
-}
-
-function completeJourney() {
-  document.getElementById('progressFill').style.width = '100%';
-  document.getElementById('progressLabel').textContent = 'Complete';
-  document.getElementById('final-profile').innerHTML = `<div class="profile-box"><div class="profile-box-icon">♓</div><div class="profile-box-label">Sign</div><div class="profile-box-value">${state.sign||'—'}</div></div><div class="profile-box"><div class="profile-box-icon">◈</div><div class="profile-box-label">Human Design</div><div class="profile-box-value">${state.hd||'—'}</div></div><div class="profile-box"><div class="profile-box-icon">♡</div><div class="profile-box-label">Love Language</div><div class="profile-box-value">${state.loveLanguage||'—'}</div></div>`;
-  document.getElementById('final-commitment').textContent = `"${state.commitment}"`;
-  goTo('phase-complete');
-  saveProgress();
-}
-
-function downloadReport() {
-  let r = `THE SHINE SOP — SOUL OPERATING PROTOCOL\nKnow Yourself First\n${'─'.repeat(40)}\n\nPROFILE\nSign: ${state.sign}\nHuman Design: ${state.hd}\nLove Language: ${state.loveLanguage}\n\nMY COMMITMENT\n"${state.commitment}"\n\n`;
-  sections.forEach((sec,si) => { r += `${'─'.repeat(40)}\nSECTION ${si+1}: ${sec.label.toUpperCase()}\n\n`; Object.entries(state.answers).forEach(([k,a]) => { if(k.startsWith(`s${si}_`)) a.forEach(x => { r += `${x}\n\n`; }); }); });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([r],{type:'text/plain'}));
-  a.download = 'My_Shine_SOP.txt'; a.click();
-}
-
-// ── Init ───────────────────────────────────────
-(async () => {
-  sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  const { data: { session } } = await sb.auth.getSession();
-  if (session?.user) { state.user = session.user; await afterSignIn(); }
-  else goTo('phase-auth');
-})();
-</script>
-</body>
-</html>
+    const res = await fetch('/.netlify/functions/chat', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ system: buildSystemPrompt(), messages: state.conversationHistory })
+});
+    
