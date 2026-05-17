@@ -609,6 +609,19 @@ function showTyping() {
 }
 function hideTyping() { const t = document.getElementById('typing'); if (t) t.remove(); }
 
+function showContinueButton(callback) {
+  const msgs = document.getElementById('chatMessages');
+  const existing = document.getElementById('continueBtn');
+  if (existing) existing.remove();
+  const btn = document.createElement('button');
+  btn.id = 'continueBtn';
+  btn.textContent = 'Continue ✦';
+  btn.style.cssText = 'display:block; margin:16px auto 8px; padding:10px 28px; background:transparent; border:1px solid var(--gold,#b8973a); color:var(--gold,#b8973a); border-radius:24px; font-size:13px; letter-spacing:0.08em; cursor:pointer; font-family:inherit;';
+  btn.onclick = () => { btn.remove(); callback(); };
+  msgs.appendChild(btn);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
 async function sendMessage() {
   const input = document.getElementById('userInput');
   const text = input.value.trim();
@@ -649,15 +662,17 @@ async function sendMessage() {
     const nextQ = state.currentQ + 1;
 
     if (nextQ < sec.questions.length) {
+      // More questions remain — show a continue button so user controls the pace
       state.currentQ = nextQ;
-      setTimeout(() => {
+      showContinueButton(() => {
         const q = sec.questions[state.currentQ];
         addGuideMessage(q);
         state.conversationHistory.push({ role:'assistant', content:q });
-      }, 1200);
+      });
     } else if (nextQ === sec.questions.length) {
+      // Section complete — show continue button to move to next section
       state.currentQ = nextQ;
-      setTimeout(() => {
+      showContinueButton(() => {
         const next = state.currentSection + 1;
         if (next < sections.length) {
           addGuideMessage("You've done beautiful work in this section. Take a breath. When you're ready, we'll move into the next one.");
@@ -665,9 +680,9 @@ async function sendMessage() {
             document.getElementById('chatMessages').innerHTML = '';
             state.conversationHistory = [];
             startSection(next);
-          }, 1800);
+          }, 2000);
         } else { completeJourney(); }
-      }, 1200);
+      });
     }
 
     await saveProgress();
