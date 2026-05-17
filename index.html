@@ -456,52 +456,49 @@ function resumeSection(idx) {
     });
 
   if (sectionAnswers.length === 0) {
-    // No answers yet — start fresh
-    state.currentQ = -1;
+    // No answers yet, start fresh
     state.conversationHistory = [];
     startSection(idx);
   } else {
-    // Has answers — rebuild the conversation from saved data
+    // Has answers, rebuild the conversation from saved data
     state.conversationHistory = [];
-    document.getElementById('chat-section-label').textContent = '✦ Section ' + sections[idx].label;
+    document.getElementById('chat-section-label').textContent = '❖ Section ' + sections[idx].label;
     document.getElementById('progressFill').style.width = Math.round((idx/sections.length)*70+20) + '%';
-
-    // Show intro
-    addGuideMessage(sections[idx].intro);
-    state.conversationHistory.push({ role:'assistant', content: sections[idx].intro });
 
     const sec = sections[idx];
 
-    // Replay each answered question and answer
+    // Show intro (q0 answer was in response to the intro)
+    addGuideMessage(sec.intro);
+    state.conversationHistory.push({ role:'assistant', content: sec.intro });
+
+    // q0 = user answered the intro question. q1+ = user answered questions[0], questions[1], etc.
     sectionAnswers.forEach(([key, answers]) => {
       const qIdx = parseInt(key.split('_q')[1]);
-      if (qIdx >= 0 && qIdx < sec.questions.length) {
-        const q = sec.questions[qIdx];
+      if (qIdx >= 1 && qIdx - 1 < sec.questions.length) {
+        const q = sec.questions[qIdx - 1];
         addGuideMessage(q);
         state.conversationHistory.push({ role:'assistant', content: q });
-        answers.forEach(ans => {
-          addUserMessage(ans);
-          state.conversationHistory.push({ role:'user', content: ans });
-        });
       }
+      answers.forEach(ans => {
+        addUserMessage(ans);
+        state.conversationHistory.push({ role:'user', content: ans });
+      });
     });
 
-    // Set currentQ to the last answered question + 1
+    // Set currentQ to last answered + 1
     const lastQIdx = parseInt(sectionAnswers[sectionAnswers.length - 1][0].split('_q')[1]);
     state.currentQ = lastQIdx + 1;
 
-    // If there are more questions, show the next one
-    if (state.currentQ < sec.questions.length) {
-      const nextQ = sec.questions[state.currentQ];
+    // Show next question if section is not done
+    if (state.currentQ - 1 < sec.questions.length) {
+      const nextQ = sec.questions[state.currentQ - 1];
       addGuideMessage(nextQ);
       state.conversationHistory.push({ role:'assistant', content: nextQ });
     } else {
-      // Section was complete — show completion message
       addGuideMessage("You've already completed this section. You can scroll back to review your answers, or choose another section from the dashboard.");
     }
   }
 }
-
 function goTo(id) {
   document.querySelectorAll('.phase').forEach(p => p.classList.remove('active'));
   document.getElementById(id).classList.add('active');
@@ -561,15 +558,16 @@ const sections = [
 function startChat() {
   state.commitment = document.getElementById('commitment').value;
   goTo('phase-chat');
-  state.currentSection = 0; state.currentQ = -1;
-  startSection(0);
+  state.currentSection = 0;
+  startSection(0);;
 }
 
 function startSection(idx) {
   if (idx >= sections.length) { completeJourney(); return; }
-  state.currentSection = idx; state.currentQ = -1;
+  state.currentSection = idx; state.currentQ = 0;
   document.getElementById('chat-section-label').textContent = '✦ Section ' + sections[idx].label;
   addGuideMessage(sections[idx].intro);
+  state.conversationHistory.push({ role:'assistant', content: sections[idx].intro });
   document.getElementById('progressFill').style.width = Math.round((idx/sections.length)*70+20) + '%';
 }
 
