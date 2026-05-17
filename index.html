@@ -444,9 +444,62 @@ function buildDashboard() {
 function resumeSection(idx) {
   state.currentSection = idx;
   document.getElementById('chatMessages').innerHTML = '';
-  state.conversationHistory = [];
   goTo('phase-chat');
-  startSection(idx);
+
+  // Check if this section has any saved answers
+  const sectionAnswers = Object.entries(state.answers)
+    .filter(([k]) => k.startsWith(`s${idx}_`))
+    .sort(([a],[b]) => {
+      const qa = parseInt(a.split('_q')[1]);
+      const qb = parseInt(b.split('_q')[1]);
+      return qa - qb;
+    });
+
+  if (sectionAnswers.length === 0) {
+    // No answers yet — start fresh
+    state.currentQ = -1;
+    state.conversationHistory = [];
+    startSection(idx);
+  } else {
+    // Has answers — rebuild the conversation from saved data
+    state.conversationHistory = [];
+    document.getElementById('chat-section-label').textContent = '✦ Section ' + sections[idx].label;
+    document.getElementById('progressFill').style.width = Math.round((idx/sections.length)*70+20) + '%';
+
+    // Show intro
+    addGuideMessage(sections[idx].intro);
+    state.conversationHistory.push({ role:'assistant', content: sections[idx].intro });
+
+    const sec = sections[idx];
+
+    // Replay each answered question and answer
+    sectionAnswers.forEach(([key, answers]) => {
+      const qIdx = parseInt(key.split('_q')[1]);
+      if (qIdx >= 0 && qIdx < sec.questions.length) {
+        const q = sec.questions[qIdx];
+        addGuideMessage(q);
+        state.conversationHistory.push({ role:'assistant', content: q });
+        answers.forEach(ans => {
+          addUserMessage(ans);
+          state.conversationHistory.push({ role:'user', content: ans });
+        });
+      }
+    });
+
+    // Set currentQ to the last answered question + 1
+    const lastQIdx = parseInt(sectionAnswers[sectionAnswers.length - 1][0].split('_q')[1]);
+    state.currentQ = lastQIdx + 1;
+
+    // If there are more questions, show the next one
+    if (state.currentQ < sec.questions.length) {
+      const nextQ = sec.questions[state.currentQ];
+      addGuideMessage(nextQ);
+      state.conversationHistory.push({ role:'assistant', content: nextQ });
+    } else {
+      // Section was complete — show completion message
+      addGuideMessage("You've already completed this section. You can scroll back to review your answers, or choose another section from the dashboard.");
+    }
+  }
 }
 
 function goTo(id) {
