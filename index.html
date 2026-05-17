@@ -629,33 +629,52 @@ async function sendMessage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ system: buildSystemPrompt(), messages: state.conversationHistory })
     });
+
+    if (!res.ok) {
+      throw new Error(`API responded with status ${res.status}`);
+    }
+
     const data = await res.json();
-    const reply = data.content?.[0]?.text || "Thank you for sharing that. Take a breath. Whenever you're ready, we'll continue.";
+    const reply = data.content?.[0]?.text;
+
+    if (!reply) {
+      throw new Error('No reply content in API response');
+    }
+
     hideTyping();
     addGuideMessage(reply);
     state.conversationHistory.push({ role:'assistant', content:reply });
-    state.currentQ++;
+
     const sec = sections[state.currentSection];
-    if (state.currentQ < sec.questions.length) {
+    const nextQ = state.currentQ + 1;
+
+    if (nextQ < sec.questions.length) {
+      state.currentQ = nextQ;
       setTimeout(() => {
         const q = sec.questions[state.currentQ];
         addGuideMessage(q);
         state.conversationHistory.push({ role:'assistant', content:q });
       }, 1200);
-    } else {
+    } else if (nextQ === sec.questions.length) {
+      state.currentQ = nextQ;
       setTimeout(() => {
         const next = state.currentSection + 1;
         if (next < sections.length) {
           addGuideMessage("You've done beautiful work in this section. Take a breath. When you're ready, we'll move into the next one.");
-          setTimeout(() => { document.getElementById('chatMessages').innerHTML = ''; state.conversationHistory = []; startSection(next); }, 1800);
+          setTimeout(() => {
+            document.getElementById('chatMessages').innerHTML = '';
+            state.conversationHistory = [];
+            startSection(next);
+          }, 1800);
         } else { completeJourney(); }
       }, 1200);
     }
+
     await saveProgress();
   } catch (err) {
     hideTyping();
     addGuideMessage("Something gentle got in the way there. Take a moment, and then try sharing again whenever you're ready.");
-    console.error(err);
+    console.error('sendMessage error:', err);
   }
   state.isWaiting = false;
   document.getElementById('sendBtn').disabled = false;
