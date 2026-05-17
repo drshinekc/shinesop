@@ -653,23 +653,15 @@ async function sendMessage() {
     }
 
     hideTyping();
-    addGuideMessage(reply);
-    state.conversationHistory.push({ role:'assistant', content:reply });
 
-    const sec = sections[state.currentSection];
-    const nextQ = state.currentQ + 1;
+    const sectionComplete = reply.includes('[SECTION COMPLETE]');
+    const cleanReply = reply.replace('[SECTION COMPLETE]', '').trim();
 
-    if (nextQ < sec.questions.length) {
-      // More questions remain — show a continue button so user controls the pace
-      state.currentQ = nextQ;
-      showContinueButton(() => {
-        const q = sec.questions[state.currentQ];
-        addGuideMessage(q);
-        state.conversationHistory.push({ role:'assistant', content:q });
-      });
-    } else if (nextQ === sec.questions.length) {
-      // Section complete — show continue button to move to next section
-      state.currentQ = nextQ;
+    addGuideMessage(cleanReply);
+    state.conversationHistory.push({ role:'assistant', content:cleanReply });
+
+    if (sectionComplete) {
+      // AI has covered all questions — show continue to next section
       showContinueButton(() => {
         const next = state.currentSection + 1;
         if (next < sections.length) {
@@ -695,21 +687,31 @@ async function sendMessage() {
 
 function buildSystemPrompt() {
   const sec = sections[state.currentSection];
+  const questionList = sec.questions.map((q, i) => `${i + 1}. ${q}`).join('\n');
   return `You are the warm, nurturing guide for The Shine SOP — a deeply personal self-discovery experience. Your role is to help people uncover who they truly are through honest, courageous conversation.
 
-Your tone is warm, grounded, nurturing, and gently reflective — like a wise friend who holds space without judgment. You reflect something meaningful back before moving on. You never rush. You honor every answer.
+Your tone is warm, grounded, nurturing, and gently reflective — like a wise friend who holds space without judgment. You reflect back what you hear, ask one question at a time, and never rush. You honor every answer.
 
 The person is currently in: Section ${state.currentSection+1} — ${sec.label}
 Their profile: Sign: ${state.sign} | Human Design: ${state.hd} | Love language: ${state.loveLanguage}
 Their commitment: "${state.commitment}"
 
+YOUR JOB IN THIS SECTION:
+You are responsible for guiding this person through all of the questions below. Do not skip any. Work through them in order, but naturally — weave them into the conversation rather than reading them like a list. If someone's answer touches on a later question, acknowledge it and still return to cover it properly when the time is right.
+
+The section opens with an intro message that contains the first question. After they respond, reflect on what they shared, then organically move toward the next question when it feels right.
+
+Questions to cover:
+${questionList}
+
 Guidelines:
-- Reflect 2-3 sentences back from what they actually shared — reference their words
+- Reflect 2-3 sentences back from what they actually shared — reference their specific words
+- Ask only ONE question at a time — never stack two questions in one message
 - Do not give advice unless asked
 - No bullet points — only flowing, warm sentences
-- Keep responses to 3-5 sentences
-- End with a gentle opening, not another question (the next question is sent separately)
-- If they share something painful, honor it first
+- Keep responses to 3-5 sentences total (reflection + next question)
+- If they share something painful, honor it fully before moving on
+- When all questions have been genuinely addressed, end your response with exactly this phrase on its own line: [SECTION COMPLETE]
 - Keep language natural and human`;
 }
 
