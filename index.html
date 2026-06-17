@@ -594,7 +594,7 @@ function addUserMessage(text) {
   const msgs = document.getElementById('chatMessages');
   const msg = document.createElement('div');
   msg.className = 'msg msg-user';
-  msg.innerHTML = `<div class="msg-avatar">🌸</div><div class="msg-bubble">${text}</div>`;
+  msg.innerHTML = `<div class="msg-avatar"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="22" height="22"><polygon points="50,8 92,75 8,75" fill="none" stroke="#888" stroke-width="4"/><polygon points="50,92 8,25 92,25" fill="none" stroke="#aaa" stroke-width="4"/></svg></div><div class="msg-bubble">${text}</div>`;
   msgs.appendChild(msg);
   msgs.scrollTop = msgs.scrollHeight;
 }
