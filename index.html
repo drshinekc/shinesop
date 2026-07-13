@@ -6,6 +6,7 @@
 <title>The Shine SOP — Soul Operating Protocol</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   :root {
     --gold: #C9A84C; --gold-light: #F0D080; --gold-pale: #FDF6E3;
@@ -305,9 +306,10 @@
       <div id="final-profile" class="profile-boxes" style="margin-bottom:32px;"></div>
       <div id="final-commitment" class="reflection" style="margin-bottom:32px;"></div>
       <div class="btn-row">
-        <button class="btn btn-primary" onclick="downloadReport()">Download My SOP ✦</button>
+        <button class="btn btn-primary" id="downloadBtn" onclick="downloadReport()">Download My SOP ✦</button>
         <button class="btn btn-secondary" onclick="goTo('phase-dashboard')">View my journey</button>
       </div>
+      <div id="downloadStatus" style="margin-top:14px; font-size:13px; color:var(--soft); text-align:center;"></div>
     </div>
   </div>
 </div>
@@ -686,9 +688,29 @@ async function sendMessage() {
   document.getElementById('sendBtn').disabled = false;
 }
 
+function buildPriorSectionsSummary() {
+  const parts = [];
+  for (let si = 0; si < state.currentSection; si++) {
+    const sec = sections[si];
+    const sectionAnswers = Object.entries(state.answers)
+      .filter(([k]) => k.startsWith(`s${si}_`))
+      .sort(([a], [b]) => parseInt(a.split('_q')[1]) - parseInt(b.split('_q')[1]));
+    if (sectionAnswers.length === 0) continue;
+    const combined = sectionAnswers.map(([,a]) => a.join(' ')).join(' ').trim();
+    if (!combined) continue;
+    const trimmed = combined.length > 600 ? combined.slice(0, 600) + '…' : combined;
+    parts.push(`Section ${si+1} (${sec.label}): ${trimmed}`);
+  }
+  return parts.join('\n\n');
+}
+
 function buildSystemPrompt() {
   const sec = sections[state.currentSection];
   const questionList = sec.questions.map((q, i) => `${i + 1}. ${q}`).join('\n');
+  const priorSummary = buildPriorSectionsSummary();
+  const priorBlock = priorSummary
+    ? `\nWHAT THEY'VE ALREADY SHARED IN EARLIER SECTIONS (for your awareness only — do not quiz them on this, do not re-ask it, but do draw on it naturally if it's genuinely relevant to deepen a question in this section):\n${priorSummary}\n`
+    : '';
   return `You are the warm, nurturing guide for The Shine SOP — a deeply personal self-discovery experience. Your role is to help people uncover who they truly are through honest, courageous conversation.
 
 Your tone is warm, grounded, nurturing, and gently reflective — like a wise friend who holds space without judgment. You reflect back what you hear, ask one question at a time, and never rush. You honor every answer.
@@ -696,14 +718,14 @@ Your tone is warm, grounded, nurturing, and gently reflective — like a wise fr
 The person is currently in: Section ${state.currentSection+1} — ${sec.label}
 Their profile: Sign: ${state.sign} | Human Design: ${state.hd} | Love language: ${state.loveLanguage}
 Their commitment: "${state.commitment}"
-
+${priorBlock}
 YOUR JOB IN THIS SECTION:
 You are responsible for guiding this person through all of the questions below. Do not skip any. Work through them in order.
 
 HOW TO WORK THROUGH EACH QUESTION:
-Each question in the list is a topic to explore deeply, not just answer once. Before moving to the next question, spend roughly 8-10 exchanges going deeper on the current one. Use follow-up questions to help the person unpack, clarify, and go beneath the surface of what they first said. You are looking for what's real and true underneath the first answer, not just the first answer itself.
+Each question in the list is a topic to explore, not just answer once. Spend roughly 3-5 exchanges going deeper on the current one — enough to get beneath the surface, not so long that it feels repetitive. Use follow-up questions to help the person unpack and clarify. If something touches on ground they already covered in an earlier section, acknowledge that briefly ("you mentioned something like this before...") instead of asking them to re-explain it from scratch.
 
-Only move to the next question when you feel the person has genuinely explored the current one — when there's a sense of arrival or completion on that topic. Then transition naturally, without announcing it.
+Only move to the next question when there's a real sense of arrival on that topic, or once you've spent the exchanges above on it — whichever comes first. Then transition naturally, without announcing it.
 
 The section opens with an intro message that contains the first question. That is your starting point.
 
@@ -713,12 +735,13 @@ ${questionList}
 Guidelines:
 - Reflect 1-2 sentences back from what they shared — use their actual words
 - Ask only ONE follow-up question per message — never stack two
-- Stay with the current question until it's been fully explored — do not rush to the next one
+- Do not linger past 5 exchanges on any single question — move forward even if the answer feels incomplete
+- Never ask something they've clearly already answered, in this section or an earlier one — if in doubt, skip ahead rather than repeat
 - Follow-up questions should go deeper: "What do you think was underneath that?" / "When did you first notice that?" / "What does that cost you?" / "What would it look like if that changed?"
 - Do not give advice unless asked
 - No bullet points — only flowing, warm sentences
 - Keep responses to 3-5 sentences total
-- If they share something painful, honor it fully and stay there before moving on
+- If they share something painful, honor it fully, but still keep the section moving — this is a guided experience, not open-ended therapy
 - When every question has been genuinely explored and the section feels complete, end your response with exactly this phrase on its own line: [SECTION COMPLETE]
 - Keep language natural and human`;
 }
@@ -732,12 +755,293 @@ function completeJourney() {
   saveProgress();
 }
 
-function downloadReport() {
-  let r = `THE SHINE SOP — SOUL OPERATING PROTOCOL\nKnow Yourself First\n${'─'.repeat(40)}\n\nPROFILE\nSign: ${state.sign}\nHuman Design: ${state.hd}\nLove Language: ${state.loveLanguage}\n\nMY COMMITMENT\n"${state.commitment}"\n\n`;
-  sections.forEach((sec,si) => { r += `${'─'.repeat(40)}\nSECTION ${si+1}: ${sec.label.toUpperCase()}\n\n`; Object.entries(state.answers).forEach(([k,a]) => { if(k.startsWith(`s${si}_`)) a.forEach(x => { r += `${x}\n\n`; }); }); });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([r],{type:'text/plain'}));
-  a.download = 'My_Shine_SOP.txt'; a.click();
+// ── Brand palette (matches the personal Shine SOP template exactly) ─────────
+const PDF_GOLD = [201, 168, 76];
+const PDF_GOLD_LIGHT = [240, 208, 128];
+const PDF_GOLD_PALE = [253, 246, 227];
+const PDF_LAVENDER = [184, 159, 204];
+const PDF_LAV_PALE = [245, 240, 255];
+const PDF_CREAM = [253, 250, 244];
+const PDF_DARK = [61, 43, 31];
+const PDF_MID = [107, 79, 58];
+const PDF_SOFT = [155, 123, 106];
+
+async function downloadReport() {
+  const btn = document.getElementById('downloadBtn');
+  const status = document.getElementById('downloadStatus');
+  btn.disabled = true;
+  status.textContent = 'Putting your Shine SOP together…';
+
+  try {
+    const sectionsWithAnswers = sections.map((sec, si) => {
+      const answers = [];
+      Object.entries(state.answers).forEach(([k, a]) => {
+        if (k.startsWith(`s${si}_`)) a.forEach(x => answers.push(x));
+      });
+      return { label: sec.label, answers };
+    });
+
+    const res = await fetch('/.netlify/functions/generate-report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        profile: { sign: state.sign, humanDesign: state.hd, loveLanguage: state.loveLanguage },
+        commitment: state.commitment,
+        sectionsWithAnswers,
+      }),
+    });
+
+    if (!res.ok) throw new Error(`Report generation failed (${res.status})`);
+    const report = await res.json();
+    if (!report.sections) throw new Error('Report came back without sections');
+
+    status.textContent = 'Designing your pages…';
+    renderShineSopPdf(report);
+    status.textContent = 'Done — check your downloads.';
+  } catch (err) {
+    console.error(err);
+    status.textContent = "Something didn't land right. Please try again in a moment.";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderShineSopPdf(report) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+  const W = doc.internal.pageSize.getWidth();
+  const H = doc.internal.pageSize.getHeight();
+  const marginX = 61.2, marginTop = 72, marginBottom = 61;
+  const maxW = W - marginX * 2;
+  let y = 0;
+
+  function ringSet(cx, cy, col, n, r0, step, lw) {
+    doc.setDrawColor(...col);
+    doc.setLineWidth(lw);
+    for (let i = 0; i < n; i++) doc.circle(cx, cy, r0 + i * step, 'S');
+  }
+
+  function drawBackground() {
+    doc.setFillColor(...PDF_CREAM);
+    doc.rect(0, 0, W, H, 'F');
+    ringSet(50, H - 50, PDF_GOLD, 7, 8.35, 10.48, 0.7);
+    ringSet(W - 50, H - 50, PDF_LAVENDER, 7, 8.35, 10.48, 0.7);
+    ringSet(50, 50, PDF_LAVENDER, 6, 8.35, 10.48, 0.5);
+    ringSet(W - 50, 50, PDF_GOLD, 6, 8.35, 10.48, 0.5);
+    ringSet(W / 2, H / 2, PDF_GOLD_LIGHT, 12, 8.35, 10.48, 0.3);
+    doc.setDrawColor(...PDF_GOLD); doc.setLineWidth(1.4);
+    doc.rect(18, 18, W - 36, H - 36, 'S');
+    doc.setDrawColor(...PDF_LAVENDER); doc.setLineWidth(0.5);
+    doc.rect(22, 22, W - 44, H - 44, 'S');
+  }
+
+  function drawFooter(pageNum) {
+    doc.setFont('times', 'italic'); doc.setFontSize(8); doc.setTextColor(...PDF_SOFT);
+    const label = `  ${pageNum}  `;
+    doc.text(label, W / 2, H - 42, { align: 'center' });
+    const tw = doc.getTextWidth(label);
+    doc.setFont('times', 'bolditalic');
+    doc.text('\u2022', W / 2 - tw / 2 - 10, H - 42);
+    doc.text('\u2022', W / 2 + tw / 2 + 6, H - 42);
+  }
+
+  function newPage() {
+    doc.addPage();
+    drawBackground();
+    drawFooter(doc.internal.getNumberOfPages());
+    y = marginTop;
+  }
+
+  function ensureSpace(h) {
+    if (y + h > H - marginBottom) newPage();
+  }
+
+  function wrapped(text, font, style, size, width) {
+    doc.setFont(font, style); doc.setFontSize(size);
+    return doc.splitTextToSize(text, width);
+  }
+
+  function para(text, opts = {}) {
+    const size = opts.size || 10.5, lh = size * 1.5;
+    doc.setFont('times', opts.italic ? 'italic' : 'normal');
+    doc.setFontSize(size); doc.setTextColor(...(opts.color || PDF_DARK));
+    const lines = doc.splitTextToSize(text, opts.width || maxW);
+    lines.forEach(line => {
+      ensureSpace(lh);
+      doc.text(line, opts.x || marginX, y);
+      y += lh;
+    });
+    y += opts.after != null ? opts.after : 8;
+  }
+
+  function h2(text) {
+    ensureSpace(30);
+    y += 10;
+    doc.setFont('times', 'bold'); doc.setFontSize(13.5); doc.setTextColor(...PDF_GOLD);
+    doc.text(text, marginX, y);
+    y += 18;
+  }
+
+  function bulletList(items) {
+    items.forEach(item => {
+      const size = 10.5, lh = size * 1.55;
+      doc.setFont('times', 'normal'); doc.setFontSize(size); doc.setTextColor(...PDF_DARK);
+      const lines = doc.splitTextToSize(item, maxW - 16);
+      ensureSpace(lh);
+      doc.setTextColor(...PDF_DARK);
+      doc.text('\u2022', marginX, y);
+      lines.forEach((line, i) => {
+        ensureSpace(lh);
+        doc.text(line, marginX + 16, y);
+        y += lh;
+      });
+      y += 6;
+    });
+  }
+
+  function blockquote(text) {
+    ensureSpace(30);
+    y += 6;
+    doc.setFont('times', 'italic'); doc.setFontSize(9.5); doc.setTextColor(...PDF_MID);
+    const lines = doc.splitTextToSize(`\u201C${text}\u201D`, maxW - 36);
+    lines.forEach(line => {
+      ensureSpace(14.5);
+      doc.text(line, marginX + 18, y);
+      y += 14.5;
+    });
+    y += 12;
+  }
+
+  function table(headers, rows) {
+    const ncols = headers.length;
+    const colW = maxW / ncols;
+    const cellPad = 9;
+    doc.setFont('times', 'normal').setFontSize(9);
+    // pre-wrap all cells to compute row heights
+    const wrappedRows = rows.map(row => row.map(c => doc.splitTextToSize(String(c), colW - cellPad * 2)));
+    const headerWrapped = headers.map(hd => doc.splitTextToSize(String(hd), colW - cellPad * 2));
+
+    function rowHeight(wrapped) {
+      const maxLines = Math.max(...wrapped.map(w => w.length));
+      return maxLines * 12 + cellPad * 2;
+    }
+
+    ensureSpace(rowHeight(headerWrapped) + 20);
+    y += 6;
+    // header row
+    let rh = rowHeight(headerWrapped);
+    doc.setFillColor(...PDF_GOLD_PALE);
+    doc.rect(marginX, y, maxW, rh, 'F');
+    doc.setDrawColor(...PDF_LAVENDER); doc.setLineWidth(0.4);
+    doc.rect(marginX, y, maxW, rh, 'S');
+    doc.setFont('times', 'bold'); doc.setFontSize(9); doc.setTextColor(...PDF_MID);
+    headerWrapped.forEach((lines, ci) => {
+      lines.forEach((line, li) => {
+        doc.text(line, marginX + ci * colW + cellPad, y + cellPad + 9 + li * 12);
+      });
+      if (ci > 0) doc.line(marginX + ci * colW, y, marginX + ci * colW, y + rh);
+    });
+    y += rh;
+
+    wrappedRows.forEach((wrapped, ri) => {
+      let rh = rowHeight(wrapped);
+      ensureSpace(rh);
+      const fill = ri % 2 === 0 ? PDF_LAV_PALE : PDF_CREAM;
+      doc.setFillColor(...fill);
+      doc.rect(marginX, y, maxW, rh, 'F');
+      doc.setDrawColor(...PDF_LAVENDER); doc.setLineWidth(0.4);
+      doc.rect(marginX, y, maxW, rh, 'S');
+      doc.setFont('times', 'normal'); doc.setFontSize(9); doc.setTextColor(...PDF_DARK);
+      wrapped.forEach((lines, ci) => {
+        lines.forEach((line, li) => {
+          doc.text(line, marginX + ci * colW + cellPad, y + cellPad + 9 + li * 12);
+        });
+        if (ci > 0) doc.line(marginX + ci * colW, y, marginX + ci * colW, y + rh);
+      });
+      y += rh;
+    });
+    y += 14;
+  }
+
+  function renderBlocks(blocks) {
+    blocks.forEach(b => {
+      if (b.type === 'h2') h2(b.text);
+      else if (b.type === 'para') para(b.text);
+      else if (b.type === 'labelval') para(`${b.label}: ${b.value}`);
+      else if (b.type === 'quote') blockquote(b.text);
+      else if (b.type === 'bullets') bulletList(b.items);
+      else if (b.type === 'table') table(b.headers, b.rows);
+    });
+  }
+
+  // ── Cover page ──
+  drawBackground();
+  drawFooter(1);
+  y = 158;
+  doc.setFont('times', 'bold'); doc.setFontSize(10); doc.setTextColor(...PDF_LAVENDER);
+  doc.text('\u2022', W / 2, y, { align: 'center' });
+  y += 40;
+  doc.setFont('times', 'bold'); doc.setFontSize(34); doc.setTextColor(...PDF_GOLD);
+  doc.text('THE SHINE SOP', W / 2, y, { align: 'center' });
+  y += 26;
+  doc.setFont('times', 'italic'); doc.setFontSize(15); doc.setTextColor(...PDF_LAVENDER);
+  doc.text('Soul Operating Protocol', W / 2, y, { align: 'center' });
+  y += 20;
+  doc.setFont('times', 'italic'); doc.setFontSize(11); doc.setTextColor(...PDF_MID);
+  doc.text('Know Yourself First', W / 2, y, { align: 'center' });
+  y += 24;
+  doc.setDrawColor(...PDF_GOLD); doc.setLineWidth(1);
+  doc.line(W / 2 - 119, y, W / 2 + 119, y);
+  y += 40;
+
+  const profileEntries = Object.entries({
+    Sign: state.sign, 'Human Design': state.hd, 'Love Language': state.loveLanguage,
+  });
+  const pColW = maxW / profileEntries.length;
+  doc.setFillColor(...PDF_GOLD_PALE);
+  doc.rect(marginX, y, maxW, 26, 'F');
+  doc.setFillColor(...PDF_CREAM);
+  doc.rect(marginX, y + 26, maxW, 22, 'F');
+  doc.setDrawColor(...PDF_LAVENDER); doc.setLineWidth(0.4);
+  doc.rect(marginX, y, maxW, 48, 'S');
+  profileEntries.forEach(([k, v], i) => {
+    const cx = marginX + i * pColW + pColW / 2;
+    if (i > 0) doc.line(marginX + i * pColW, y, marginX + i * pColW, y + 48);
+    doc.setFont('times', 'bold'); doc.setFontSize(9); doc.setTextColor(...PDF_MID);
+    doc.text(`\u2022 ${k.toUpperCase()}`, cx, y + 17, { align: 'center' });
+    doc.setFont('times', 'normal'); doc.setFontSize(9); doc.setTextColor(...PDF_DARK);
+    doc.text(String(v || '\u2014'), cx, y + 40, { align: 'center' });
+  });
+  y += 68;
+
+  if (state.commitment) {
+    doc.setFont('times', 'italic'); doc.setFontSize(10.5); doc.setTextColor(...PDF_MID);
+    const qLines = doc.splitTextToSize(`\u201C${state.commitment}\u201D`, maxW - 80);
+    qLines.forEach(line => { doc.text(line, W / 2, y, { align: 'center' }); y += 16; });
+    y += 6;
+    doc.setFont('times', 'italic'); doc.setFontSize(8.5); doc.setTextColor(...PDF_SOFT);
+    doc.text('Return to this when the fear comes up.', W / 2, y, { align: 'center' });
+  }
+
+  // ── Section pages ──
+  report.sections.forEach((sec, i) => {
+    newPage();
+    doc.setFont('times', 'bold'); doc.setFontSize(11); doc.setTextColor(...PDF_LAVENDER);
+    doc.text(String(i + 1).padStart(2, '0'), marginX, y);
+    y += 22;
+    doc.setFont('times', 'bold'); doc.setFontSize(20); doc.setTextColor(...PDF_GOLD);
+    doc.text(sec.title, marginX, y);
+    y += 20;
+    if (sec.desc) {
+      doc.setFont('times', 'italic'); doc.setFontSize(10); doc.setTextColor(...PDF_SOFT);
+      const dLines = doc.splitTextToSize(sec.desc, maxW);
+      dLines.forEach(line => { doc.text(line, marginX, y); y += 14; });
+      y += 6;
+    }
+    renderBlocks(sec.blocks || []);
+  });
+
+  doc.save('My_Shine_SOP.pdf');
 }
 
 // ── Init ───────────────────────────────────────
